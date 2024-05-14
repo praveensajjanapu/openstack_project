@@ -11,19 +11,23 @@ First, we need to generate an SSH key by executing either "ssh-keygen" or "ssh-k
 #openstack token issue   (to establish connection between Ubuntu and OpenStack)
 
 To execute the code, follow these commands:
+
 a. Set executable permissions for the "install" script:
   
   chmod +x install
+  
   ./install openrc nso ssh
 
 b. Set executable permissions for the "operate" script:
 
    chmod +x operate
+   
    ./operate openrc nso ssh
    
 c. Lastly, ensure executable permissions for the "cleanup" script:
 
    chmod +x cleanup
+   
    ./cleanup openrc nso ssh
    
 #### These commands facilitate the deployment, operation, and cleanup of the service within the OpenStack Cloud environment efficiently.
