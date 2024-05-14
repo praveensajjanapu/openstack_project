@@ -4,11 +4,11 @@
 
 First, we need to generate an SSH key by executing either "ssh-keygen" or "ssh-keygen -t rsa -b 4096". The second step involves creating an openrc file within OpenStack users, copying and pasting its contents into Ubuntu, and running the following commands for proper configuration:
 
-#chmod 600 openrc        (to set permissions)
+### chmod 600 openrc        (to set permissions)
 
-#source openrc           (to source the file)
+### source openrc           (to source the file)
 
-#openstack token issue   (to establish connection between Ubuntu and OpenStack)
+### openstack token issue   (to establish connection between Ubuntu and OpenStack)
 
 To execute the code, follow these commands:
 
