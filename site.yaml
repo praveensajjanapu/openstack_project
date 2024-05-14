@@ -1,3 +1,9 @@
+---
+- hosts: all 
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+
 - name: Install required packages
   apt:
     name:
