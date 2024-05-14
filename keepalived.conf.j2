@@ -1,0 +1,47 @@
+# Define a custom script to check if HAProxy is running
+check_haproxy_script {
+    # Use the pgrep command to check for the HAProxy process
+    command "/usr/bin/pgrep -x haproxy"
+    
+    # Check every 3 seconds
+    interval 3
+    
+    # Weight and fall/rise values for state transition
+    weight 2
+    fall 2
+    rise 2
+}
+
+# Define the VRRP instance configuration
+vrrp_instance KEEPALIVED_INSTANCE {
+    # Set the state based on the node role (MASTER or BACKUP)
+    state {{ node_role }}
+    
+    # Interface to use for VRRP communication
+    interface {{ network_interface }}
+    
+    # Virtual Router ID (must be the same for all nodes in the cluster)
+    virtual_router_id 51
+    
+    # Priority for this node (higher value for MASTER)
+    priority {{ node_priority }}
+    
+    # Advertisement interval in seconds
+    advert_int 1
+    
+    # Authentication settings
+    authentication {
+        auth_type PASS
+        auth_pass {{ auth_password }}
+    }
+    
+    # Monitor the HAProxy process using the custom script
+    track_script {
+        check_haproxy_script
+    }
+    
+    # Virtual IP address to be shared by the MASTER node
+    virtual_ipaddress {
+        {{ virtual_ip }}/24
+    }
+}
