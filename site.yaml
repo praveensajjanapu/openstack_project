@@ -10,26 +10,26 @@
     - name: sudo wait
       become: yes
       shell: while sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 5; done;
-- name: configure HAproxy load balancer
-  hosts: HAproxy
+
+- hosts: HAproxy
   become: yes
   become_method: sudo
   tasks:
     - name: apt update
       apt:
         update_cache: yes
-- name: Install HAProxy load balancer
-  apt:
-    name: haproxy
-    state: latest
-- name: HAProxy configuration
-  template:
-    src: haproxy.cfg.j2
-    dest: /etc/haproxy/haproxy.cfg
-  become: yes
-  notify:
-    - Restart HAProxy
-- handlers:
+    - name: Install HAProxy load balancer
+      apt:
+        name: haproxy
+        state: latest
+    - name: HAProxy configuration
+      template:
+        src: haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+      notify:
+        - Restart HAProxy
+
+  handlers:
     - name: Restart HAProxy
       service:
         name: haproxy
@@ -63,11 +63,11 @@
         state: latest
     - name: configure nginx udp port
       template:
-        src: nginix.conf.j2
+        src: nginx.conf.j2
         dest: /etc/nginx/sites-available/default
     - name: configure udp for loadbalancing
       template:
-        src: nginix.conf.j2.conf
+        src: nginx.conf.j2
         dest: /etc/nginx/nginx.conf
     - name: Restart Nginx
       service:
@@ -76,21 +76,27 @@
     - name: apt update
       apt:
         update_cache: true
-- name: Install Keepalived
-  apt:
-    name: keepalived
-    state: present
-- name: Copy Keepalived configuration
-  copy:
-    src: keepalived.conf
-    dest: /etc/keepalived/keepalived.conf
-  notify:
-    - Restart Keepalived
-- handlers:
+
+- hosts: HAproxy
+  become: yes
+  tasks:
+    - name: Install Keepalived
+      apt:
+        name: keepalived
+        state: present
+    - name: Copy Keepalived configuration
+      copy:
+        src: keepalived.conf
+        dest: /etc/keepalived/keepalived.conf
+      notify:
+        - Restart Keepalived
+
+  handlers:
     - name: Restart Keepalived
       service:
         name: keepalived
         state: restarted
+
 - hosts: webservers
   become: true
   become_method: sudo
@@ -149,6 +155,7 @@
     - name: apt update
       apt:
         update_cache: true
+
 - hosts: primary_proxy
   become: yes
   vars:
@@ -161,6 +168,7 @@
       template:
         src: keepalived.conf.j2
         dest: /etc/keepalived/keepalived.conf
+
 - hosts: backup_proxy
   become: yes
   vars:
@@ -173,8 +181,8 @@
       template:
         src: keepalived.conf.j2
         dest: /etc/keepalived/keepalived.conf
-- name: Restart Keepalived
-  hosts: HAproxy
+
+- hosts: HAproxy
   become: yes
   tasks:
     - name: Ensure Keepalived service is running
@@ -189,8 +197,8 @@
       service:
         name: keepalived
         state: started
-- name: Install Prometheus and Grafana on Bastion
-  hosts: bastion
+
+- hosts: bastion
   gather_facts: yes
   become: true
   tasks:
@@ -200,7 +208,7 @@
     - name: gather server ip addresses
       setup:
         filter: ansible_default_ipv4.address
-    - name: Copr script to server
+    - name: Copy script to server
       copy:
         src: monitoringsolution.sh
         dest: monitoringsolution.sh
@@ -215,8 +223,9 @@
       systemd:
         name: prometheus
         state: restarted
-- name: Install Node exporter on nodes
-  hosts: webservers
+
+- hosts: webservers
+  name: Install Node exporter on nodes
   gather_facts: yes
   become: true
   tasks:
