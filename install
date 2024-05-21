@@ -34,7 +34,7 @@ existing_keypairs=$(openstack keypair list -f value --column Name)
 if echo "$existing_keypairs" | grep -qFx $keypair_name; then
     echo "$(date) $keypair_name already exists"
 else
-    openstack keypair create --public-key "$publickey" "$keypair_name" > /dev/null
+    openstack keypair create --public-key "$publickey" "$keypair_name"
     echo "$(date) Created keypair $keypair_name"
 fi
 
@@ -43,7 +43,7 @@ existing_networks=$(openstack network list --tag "$tag_name" --column Name -f va
 if echo "$existing_networks" | grep -qFx $network_name; then
     echo "$(date) $network_name already exists"
 else
-    openstack network create --tag "$tag_name" "$network_name" -f json > /dev/null
+    openstack network create --tag "$tag_name" "$network_name" -f json
     echo "$(date) Created network $network_name"
 fi
 
@@ -52,7 +52,7 @@ existing_subnets=$(openstack subnet list --tag "$tag_name" --column Name -f valu
 if echo "$existing_subnets" | grep -qFx $subnet_name; then
     echo "$(date) $subnet_name already exists"
 else
-    openstack subnet create --subnet-range 10.10.0.0/24 --allocation-pool start=10.10.0.2,end=10.10.0.30 --tag "$tag_name" --network "$network_name" "$subnet_name" -f json > /dev/null
+    openstack subnet create --subnet-range 10.10.0.0/24 --allocation-pool start=10.10.0.2,end=10.10.0.30 --tag "$tag_name" --network "$network_name" "$subnet_name" -f json
     echo "$(date) Created subnet $subnet_name"
 fi
 
@@ -61,9 +61,9 @@ existing_routers=$(openstack router list --tag "$tag_name" --column Name -f valu
 if echo "$existing_routers" | grep -qFx $router_name; then
     echo "$(date) $router_name already exists"
 else
-    openstack router create --tag "$tag_name" "$router_name" > /dev/null
+    openstack router create --tag "$tag_name" "$router_name"
     echo "$(date) Created router $router_name"
-    openstack router set --external-gateway ext-net "$router_name" > /dev/null
+    openstack router set --external-gateway ext-net "$router_name"
     openstack router add subnet "$router_name" "$subnet_name" > /dev/null
 fi
 
@@ -72,16 +72,16 @@ existing_security_groups=$(openstack security group list --tag "$tag_name" -f va
 if echo "$existing_security_groups" | grep -qFx $security_group_name; then
     echo "$(date) $security_group_name already exists"
 else
-    openstack security group create --tag "$tag_name" "$security_group_name" -f json > /dev/null
+    openstack security group create --tag "$tag_name" "$security_group_name" -f json 
     for port in 22 80 5000 8080 6000 9090 9100 3000 161; do
-        openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port "$port" --protocol tcp --ingress "$security_group_name" > /dev/null
+        openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port "$port" --protocol tcp --ingress "$security_group_name"
     done
-    openstack security group rule create --protocol 112 "$security_group_name" > /dev/null # VRRP protocol
+    openstack security group rule create --protocol 112 "$security_group_name" # VRRP protocol
     echo "$(date) Created security group $security_group_name"
 fi
 
 # Create port for Virtual IP
-openstack port create --network "$network_name" --fixed-ip subnet="$subnet_name" --no-security-group "$vip_port" > /dev/null
+openstack port create --network "$network_name" --fixed-ip subnet="$subnet_name" --no-security-group "$vip_port"
 
 unassigned_ips=$(openstack floating ip list --status DOWN -f value -c "Floating IP Address")
 
@@ -98,8 +98,8 @@ else
         fip1=$(openstack floating ip create ext-net -f json | jq -r '.floating_ip_address')
         echo "$(date) Created floating IP $fip1 for bastion server"
     fi
-    openstack server create --image "Ubuntu 20.04 Focal Fossa 20200423" "$bastion_server" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name" > /dev/null
-    openstack server add floating ip "$bastion_server" "$fip1" > /dev/null
+    openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$bastion_server" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name"
+    openstack server add floating ip "$bastion_server" "$fip1"
     echo "$(date) Created $bastion_server server"
 fi
 
@@ -113,13 +113,13 @@ else
         fip2=$(openstack floating ip create ext-net -f json | jq -r '.floating_ip_address')
         echo "$(date) Created floating IP $fip2 for HAproxy server"
     fi
-    openstack server create --image "Ubuntu 20.04 Focal Fossa 20200423" "$haproxy_server" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name" > /dev/null
-    openstack server create --image "Ubuntu 20.04 Focal Fossa 20200423" "$haproxy_server2" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name" > /dev/null
+    openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$haproxy_server" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name"
+    openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$haproxy_server2" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name"
     echo "$(date) Created $haproxy_server and $haproxy_server2 servers"
 fi
 
 # Attach floating IP to VIP port
-openstack floating ip set --port "$vip_port" "$fip2" > /dev/null
+openstack floating ip set --port "$vip_port" "$fip2"
 vip_addr=$(openstack port show "$vip_port" -f value -c fixed_ips | grep -Po '\d+\.\d+\.\d+\.\d+')
 openstack port set --allowed-address ip-address="$fip2" "$vip_port" > /dev/null
 
@@ -131,13 +131,13 @@ if (( current_dev_count < required_dev_servers )); then
     servers_to_create=$((required_dev_servers - current_dev_count))
     for ((i = current_dev_count + 1; i <= current_dev_count + servers_to_create; i++)); do
         dev_server_name="${dev_server}${i}"
-        openstack server create --image "Ubuntu 20.04 Focal Fossa 20200423" "$dev_server_name" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name" > /dev/null
+        openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$dev_server_name" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name"
         echo "$(date) Created $dev_server_name server"
     done
 elif (( current_dev_count > required_dev_servers )); then
     servers_to_delete=$((current_dev_count - required_dev_servers))
     for server in $(echo "$existing_dev_servers" | head -n $servers_to_delete); do
-        openstack server delete "$server" > /dev/null
+        openstack server delete "$server"
         echo "$(date) Deleted $server server"
     done
 else
