@@ -1,1 +1,156 @@
+#!/bin/bash
+
+# Function to display current date and time
+display_current_date_time() {
+    echo "$(date)"
+}
+
+# Function to display messages with date and time
+display() {
+    echo "[$(date)] $1"
+}
+
+# Function to delete servers
+clean_up_servers() {
+    local tag=$1
+    servers=$(openstack server list --name "$tag" -c ID -f value)
+    if [ -n "$servers" ]; then
+        display "Found servers, deleting them"
+        for server_id in $servers; do
+            openstack server delete $server_id
+            display "Deleted server $server_id"
+        done
+    else
+        display "No servers exist to delete"
+    fi
+}
+
+# Function to delete keypairs
+clean_up_keypairs() {
+    local tag=$1
+    keypairs=$(openstack keypair list -f value -c Name | grep "$tag")
+    if [ -n "$keypairs" ]; then
+        for key in $keypairs; do
+            openstack keypair delete $key
+            display "Deleted keypair $key"
+        done
+    else
+        display "No keypairs exist to delete"
+    fi
+}
+
+# Function to delete floating IPs
+clean_up_floatips() {
+    floating_ips=$(openstack floating ip list --status DOWN -f value -c "Floating IP Address")
+    if [ -n "$floating_ips" ]; then
+        for fip in $floating_ips; do
+            openstack floating ip delete "$fip"
+            display "Deleted floating IP $fip"
+        done
+    else
+        display "No floating IPs to remove"
+    fi
+}
+
+# Function to delete virtual IP ports
+clean_up_vip_ports() {
+    local floating_ip2=$1
+    local virtualip=$2
+    openstack floating ip unset --port "$floating_ip2"
+    display "Detached floating IP from virtual port"
+
+    unassigned_ips=$(openstack floating ip list --port "$virtualip" --status ACTIVE -f value -c "Floating IP Address")
+    for ip in $unassigned_ips; do
+        openstack floating ip unset --port "$ip"
+        display "Unset floating IP $ip from port"
+    done
+
+    openstack port delete "$virtualip"
+    display "Deleted virtual port $virtualip"
+}
+
+# Function to delete subnets
+clean_up_subnets() {
+    local tag=$1
+    local def_router=$2
+    subnets=$(openstack subnet list --tag "$tag" -c ID -f value)
+    if [ -n "$subnets" ]; then
+        for subnet in $subnets; do
+            openstack router remove subnet "$def_router" "$subnet"
+            openstack subnet delete "$subnet"
+            display "Deleted subnet $subnet"
+        done
+    else
+        display "No subnets to delete"
+    fi
+}
+
+# Function to delete routers
+clean_up_routers() {
+    local tag=$1
+    routers=$(openstack router list --tag "$tag" -f value -c Name)
+    if [ -n "$routers" ]; then
+        for router in $routers; do
+            openstack router delete "$router"
+            display "Deleted router $router"
+        done
+    else
+        display "No routers to delete"
+    fi
+}
+
+# Function to delete networks
+clean_up_networks() {
+    local tag=$1
+    networks=$(openstack network list --tag "$tag" -f value -c Name)
+    if [ -n "$networks" ]; then
+        for network in $networks; do
+            openstack network delete "$network"
+            display "Deleted network $network"
+        done
+    else
+        display "No networks to delete"
+    fi
+}
+
+# Function to delete security groups
+clean_up_security_groups() {
+    local tag=$1
+    security_groups=$(openstack security group list --tag "$tag" -f value -c Name)
+    if [ -n "$security_groups" ]; then
+        for secgrp in $security_groups; do
+            openstack security group delete "$secgrp"
+            display "Deleted security group $secgrp"
+        done
+    else
+        display "No security groups to delete"
+    fi
+}
+
+# Main script starts here
+
+openrcfile=$1
+tag=$2
+ssh_key=$3
+virtualip="${tag}_vip"
+required_dev_servers=$(cat servers.conf)
+
+display_current_date_time
+display "Starting deployment of $tag using $openrcfile for credentials."
+source "$openrcfile"
+
+# Clean up resources
+clean_up_servers $tag
+clean_up_keypairs $tag
+clean_up_floatips
+clean_up_vip_ports "$(cat floating_ip2)" "$virtualip"
+clean_up_subnets $tag "${tag}_router"
+clean_up_routers $tag
+clean_up_networks $tag
+clean_up_security_groups $tag
+
+# Remove unnecessary files
+rm -f "$sshconf_file" "$knownhosts" "floating_ip1" "floating_ip2" "$hostsfile" "addr_vip" "vadd"
+
+display "Clean up completed."
 
