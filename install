@@ -162,13 +162,13 @@ create_server() {
 
 # Create bastion server and assign floating IP
 assign_floating_ip "$bastion_server" bastion_fip
-create_server "$bastion_server" "Ubuntu 20.04 Focal Fossa 20200423" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
+create_server "$bastion_server" "Ubuntu 20.04 Focal Fossa x86_64" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
 openstack server add floating ip "$bastion_server" "$bastion_fip" > /dev/null
 
 # Create HAProxy servers and assign floating IP
 assign_floating_ip "$haproxy_server" haproxy_fip
-create_server "$haproxy_server" "Ubuntu 20.04 Focal Fossa 20200423" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
-create_server "$haproxy_server2" "Ubuntu 20.04 Focal Fossa 20200423" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
+create_server "$haproxy_server" "Ubuntu 20.04 Focal Fossa x86_64" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
+create_server "$haproxy_server2" "Ubuntu 20.04 Focal Fossa x86_64" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
 openstack server add floating ip "$haproxy_server" "$haproxy_fip" > /dev/null
 
 # Attach floating IP to VIP port and update port settings
@@ -184,7 +184,7 @@ if (( current_dev_count < required_dev_servers )); then
     servers_to_create=$((required_dev_servers - current_dev_count))
     for ((i = current_dev_count + 1; i <= current_dev_count + servers_to_create; i++)); do
         dev_server_name="${dev_server}${i}"
-        create_server "$dev_server_name" "Ubuntu 20.04 Focal Fossa 20200423" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
+        create_server "$dev_server_name" "Ubuntu 20.04 Focal Fossa x86_64" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
     done
 elif (( current_dev_count > required_dev_servers )); then
     servers_to_delete=$((current_dev_count - required_dev_servers))
