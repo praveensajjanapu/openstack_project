@@ -42,7 +42,7 @@ create_keypair() {
     local existing_keypairs=$(openstack keypair list -f value --column Name)
 
     if ! grep -qFx "$keypair_name" <<< "$existing_keypairs"; then
-        openstack keypair create --public-key "$publickey" "$keypair_name" > /dev/null
+        openstack keypair create --public-key "$publickey" "$keypair_name"
         display_time "Created keypair $keypair_name"
     else
         display_time "$keypair_name already exists"
@@ -56,7 +56,7 @@ create_network() {
     local existing_networks=$(openstack network list --tag "$tag_name" --column Name -f value)
 
     if ! grep -qFx "$network_name" <<< "$existing_networks"; then
-        openstack network create --tag "$tag_name" "$network_name" -f json > /dev/null
+        openstack network create --tag "$tag_name" "$network_name" -f json
         display_time "Created network $network_name"
     else
         display_time "$network_name already exists"
@@ -71,7 +71,7 @@ create_subnet() {
     local existing_subnets=$(openstack subnet list --tag "$tag_name" --column Name -f value)
 
     if ! grep -qFx "$subnet_name" <<< "$existing_subnets"; then
-        openstack subnet create --subnet-range 10.10.0.0/24 --allocation-pool start=10.10.0.2,end=10.10.0.30 --tag "$tag_name" --network "$network_name" "$subnet_name" -f json > /dev/null
+        openstack subnet create --subnet-range 10.10.0.0/24 --allocation-pool start=10.10.0.2,end=10.10.0.30 --tag "$tag_name" --network "$network_name" "$subnet_name" -f json
         display_time "Created subnet $subnet_name"
     else
         display_time "$subnet_name already exists"
@@ -86,10 +86,10 @@ create_router() {
     local existing_routers=$(openstack router list --tag "$tag_name" --column Name -f value)
 
     if ! grep -qFx "$router_name" <<< "$existing_routers"; then
-        openstack router create --tag "$tag_name" "$router_name" > /dev/null
+        openstack router create --tag "$tag_name" "$router_name"
         display_time "Created router $router_name"
-        openstack router set --external-gateway ext-net "$router_name" > /dev/null
-        openstack router add subnet "$router_name" "$subnet_name" > /dev/null
+        openstack router set --external-gateway ext-net "$router_name"
+        openstack router add subnet "$router_name" "$subnet_name"
     else
         display_time "$router_name already exists"
     fi
@@ -102,11 +102,11 @@ create_security_group() {
     local existing_security_groups=$(openstack security group list --tag "$tag_name" -f value)
 
     if ! grep -qFx "$security_group_name" <<< "$existing_security_groups"; then
-        openstack security group create --tag "$tag_name" "$security_group_name" -f json > /dev/null
+        openstack security group create --tag "$tag_name" "$security_group_name" -f json
         for port in 22 80 5000 8080 6000 9090 9100 3000 161; do
-            openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port "$port" --protocol tcp --ingress "$security_group_name" > /dev/null
+            openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port "$port" --protocol tcp --ingress "$security_group_name"
         done
-        openstack security group rule create --protocol 112 "$security_group_name" > /dev/null
+        openstack security group rule create --protocol 112 "$security_group_name"
         display_time "Created security group $security_group_name"
     else
         display_time "$security_group_name already exists"
@@ -121,7 +121,7 @@ create_router "$router_name" "$subnet_name" "$tag_name"
 create_security_group "$security_group_name" "$tag_name"
 
 # Create port for virtual IP
-openstack port create --network "$network_name" --fixed-ip subnet="$subnet_name" --no-security-group "$vip_port" > /dev/null
+openstack port create --network "$network_name" --fixed-ip subnet="$subnet_name" --no-security-group "$vip_port"
 
 # Check and create floating IPs if needed
 floating_ips=$(openstack floating ip list --status DOWN -f value -c "Floating IP Address")
@@ -153,7 +153,7 @@ create_server() {
 
     local existing_servers=$(openstack server list --status ACTIVE --column Name -f value)
     if ! grep -qFx "$server_name" <<< "$existing_servers"; then
-        openstack server create --image "$image" --flavor "$flavor" --network "$network" --security-group "$security_group" --key-name "$key_name" "$server_name" > /dev/null
+        openstack server create --image "$image" --flavor "$flavor" --network "$network" --security-group "$security_group" --key-name "$key_name" "$server_name"
         display_time "Created server $server_name"
     else
         display_time "$server_name already exists"
@@ -163,18 +163,18 @@ create_server() {
 # Create bastion server and assign floating IP
 assign_floating_ip "$bastion_server" bastion_fip
 create_server "$bastion_server" "Ubuntu 20.04 Focal Fossa x86_64" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
-openstack server add floating ip "$bastion_server" "$bastion_fip" > /dev/null
+openstack server add floating ip "$bastion_server" "$bastion_fip"
 
 # Create HAProxy servers and assign floating IP
 assign_floating_ip "$haproxy_server" haproxy_fip
 create_server "$haproxy_server" "Ubuntu 20.04 Focal Fossa x86_64" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
 create_server "$haproxy_server2" "Ubuntu 20.04 Focal Fossa x86_64" "1C-2GB-50GB" "$network_name" "$security_group_name" "$keypair_name"
-openstack server add floating ip "$haproxy_server" "$haproxy_fip" > /dev/null
+openstack server add floating ip "$haproxy_server" "$haproxy_fip"
 
 # Attach floating IP to VIP port and update port settings
 openstack floating ip set --port "$vip_port" "$haproxy_fip" > /dev/null
 vip_addr=$(openstack port show "$vip_port" -f value -c fixed_ips | grep -Po '\d+\.\d+\.\d+\.\d+')
-openstack port set --allowed-address ip-address="$haproxy_fip" "$vip_port" > /dev/null
+openstack port set --allowed-address ip-address="$haproxy_fip" "$vip_port"
 
 # Manage dev servers
 existing_dev_servers=$(openstack server list --status ACTIVE -f value -c Name | grep -oP "${tag_name}_dev[1-9]+")
@@ -240,7 +240,7 @@ echo "ansible_ssh_common_args='-F $sshconfig'" >> "$hostsfile"
 
 # Run ansible playbook
 display_time "Running ansible playbook"
-ansible-playbook -i "$hostsfile" site.yaml > /dev/null
+ansible-playbook -i "$hostsfile" site.yaml
 
 # Display floating IPs
 display_time "Bastion IP address: $bastion_fip"
