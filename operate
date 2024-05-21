@@ -118,7 +118,7 @@ manage_dev_servers() {
         echo "$(date) Adding $to_add dev servers"
         for (( i=0; i<to_add; i++ )); do
             server_name="${dev_server}$((current_count + i + 1))"
-            openstack server create --image "Ubuntu 20.04 Focal Fossa" --flavor "1C-1GB-50GB" --key-name "$keypair_name" --network "$network_name" --security-group "$security_group_name" --wait $server_name
+            openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" --flavor "1C-1GB-50GB" --key-name "$keypair_name" --network "$network_name" --security-group "$security_group_name" --wait $server_name
             echo "$(date) Created $server_name"
         done
     elif (( required_servers < current_count )); then
