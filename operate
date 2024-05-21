@@ -1,1 +1,145 @@
+#!/bin/bash
+
+# Function to display the current date and time
+display_current_date_time() {
+    echo "$(date)"
+}
+
+# Arguments
+openrcfile=$1
+tag=$2
+ssh_key=$3
+
+# Define variables
+network_name="${tag}_network"
+subnet_name="${tag}_subnet"
+keypair_name="${tag}_key"
+router_name="${tag}_router"
+security_group_name="${tag}_security_group"
+haproxy_server="${tag}_HAproxy"
+haproxy_server2="${tag}_HAproxy2"
+bastion_server="${tag}_bastion"
+dev_server="${tag}_dev"
+ssh_config_file="ssh_config"
+hosts_file="hosts"
+
+# Load OpenStack credentials
+echo "Operation mode started for tag: $tag using $openrcfile for credentials"
+source $openrcfile
+
+# Function to create SSH and hosts configuration files
+generate_config_files() {
+    bastion_fip=$(openstack server list --name $bastion_server -c Networks -f value | grep -Po '\d+\.\d+\.\d+\.\d+' | awk 'NR==1')
+    haproxy_fip1=$(openstack server show $haproxy_server -c addresses -f value | grep -Po '\d+\.\d+\.\d+\.\d+' | awk 'NR==1')
+    haproxy_fip2=$(openstack server list --name $haproxy_server2 -c Networks -f value | grep -Po '\d+\.\d+\.\d+\.\d+' | awk 'NR==1')
+
+    echo "$(date) Generating SSH config file"
+    cat <<EOL > $ssh_config_file
+Host $bastion_server
+    User ubuntu
+    HostName $bastion_fip
+    IdentityFile ~/.ssh/$ssh_key
+    StrictHostKeyChecking no
+    PasswordAuthentication no
+
+Host $haproxy_server
+    User ubuntu
+    HostName $haproxy_fip1
+    IdentityFile ~/.ssh/$ssh_key
+    StrictHostKeyChecking no
+    PasswordAuthentication no
+    ProxyJump $bastion_server
+
+Host $haproxy_server2
+    User ubuntu
+    HostName $haproxy_fip2
+    IdentityFile ~/.ssh/$ssh_key
+    StrictHostKeyChecking no
+    PasswordAuthentication no
+    ProxyJump $bastion_server
+EOL
+
+    echo "$(date) Generating Ansible hosts file"
+    cat <<EOL > $hosts_file
+[bastion]
+$bastion_server
+
+[HAproxy]
+$haproxy_server
+$haproxy_server2
+
+[primary_proxy]
+$haproxy_server
+
+[backup_proxy]
+$haproxy_server2
+
+[webservers]
+EOL
+
+    active_servers=$(openstack server list --status ACTIVE -f value -c Name | grep -oP "${tag}_dev[0-9]+")
+    for server in $active_servers; do
+        ip_address=$(openstack server list --name $server -c Networks -f value | grep -Po '\d+\.\d+\.\d+\.\d+')
+        echo "Host $server
+    User ubuntu
+    HostName $ip_address
+    IdentityFile ~/.ssh/$ssh_key
+    StrictHostKeyChecking no
+    PasswordAuthentication no
+    ProxyJump $bastion_server" >> $ssh_config_file
+
+        echo "$server" >> $hosts_file
+    done
+
+    cat <<EOL >> $hosts_file
+[all:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/$ssh_key
+ansible_ssh_common_args='-F $ssh_config_file'
+EOL
+}
+
+# Function to remove existing configuration files
+remove_config_files() {
+    rm -f $ssh_config_file $hosts_file
+}
+
+# Function to manage the creation and deletion of development servers
+manage_dev_servers() {
+    required_servers=$(cat servers.conf)
+    echo "$(date) Reading servers.conf, required dev servers: $required_servers"
+
+    existing_servers=$(openstack server list --status ACTIVE --column Name -f value)
+    current_count=$(grep -c "$dev_server" <<< "$existing_servers")
+    echo "$(date) Current dev servers: $current_count"
+
+    if (( required_servers > current_count )); then
+        to_add=$((required_servers - current_count))
+        echo "$(date) Adding $to_add dev servers"
+        for (( i=0; i<to_add; i++ )); do
+            server_name="${dev_server}$((current_count + i + 1))"
+            openstack server create --image "Ubuntu 20.04 Focal Fossa" --flavor "1C-1GB-50GB" --key-name "$keypair_name" --network "$network_name" --security-group "$security_group_name" --wait $server_name
+            echo "$(date) Created $server_name"
+        done
+    elif (( required_servers < current_count )); then
+        to_remove=$((current_count - required_servers))
+        echo "$(date) Removing $to_remove dev servers"
+        for (( i=0; i<to_remove; i++ )); do
+            server_name=$(openstack server list --status ACTIVE --column Name -f value | grep -m1 -oP "${dev_server}[0-9]+")
+            openstack server delete $server_name --wait
+            echo "$(date) Deleted $server_name"
+        done
+    else
+        echo "$(date) Required number of dev servers already exist"
+    fi
+
+    generate_config_files
+}
+
+# Main loop to monitor and adjust the number of dev servers
+while true; do
+    manage_dev_servers
+    echo "Entering sleep mode"
+    sleep 30
+done
 
