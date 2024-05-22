@@ -29,81 +29,98 @@ for file in "$sshconfig" "$knownhosts" "$hostsfile"; do
     [[ -f $file ]] && rm "$file"
 done
 
-# Check if keypair exists
-existing_keypairs=$(openstack keypair list -f value --column Name)
-if echo "$existing_keypairs" | grep -qFx $keypair_name; then
-    echo "$(date) $keypair_name already exists"
+# Check and create keypair
+checking_keypair=$(openstack keypair list -f value --column Name)
+if ! grep -qFx "$keypair_name" <<< "$checking_keypair"; then
+    keypair_create=$(openstack keypair create --public-key "$publickey" "$keypair_name")
+    echo "$(date) keypair created $keypair_name"
 else
-    openstack keypair create --public-key "$publickey" "$keypair_name"
-    echo "$(date) Created keypair $keypair_name"
+    echo "$(date) $keypair_name already exists"
 fi
 
-# Check if network already exists
+# Check and create network
 existing_networks=$(openstack network list --tag "$tag_name" --column Name -f value)
-if echo "$existing_networks" | grep -qFx $network_name; then
+if echo "$existing_networks" | grep -qFx "$network_name"; then
     echo "$(date) $network_name already exists"
 else
-    openstack network create --tag "$tag_name" "$network_name" -f json
+    created_network=$(openstack network create --tag "$tag_name" "$network_name" -f json)
     echo "$(date) Created network $network_name"
 fi
 
-# Check if subnet already exists
-existing_subnets=$(openstack subnet list --tag "$tag_name" --column Name -f value)
-if echo "$existing_subnets" | grep -qFx $subnet_name; then
+# Check and create subnet
+checking_subnets=$(openstack subnet list -f value --column Name)
+if ! grep -qFx "$subnet_name" <<< "$checking_subnets"; then
+    subnet_create=$(openstack subnet create --tag "$tag_name" --network "$network_name" --subnet-range 10.50.0.0/24 --gateway 10.50.0.1 --allocation-pool start=10.50.0.2,end=10.50.0.100 "$subnet_name" -f json)
+    echo "$(date) subnet created $subnet_name"
+else
     echo "$(date) $subnet_name already exists"
-else
-    openstack subnet create --subnet-range 10.10.0.0/24 --allocation-pool start=10.10.0.2,end=10.10.0.30 --tag "$tag_name" --network "$network_name" "$subnet_name" -f json
-    echo "$(date) Created subnet $subnet_name"
 fi
 
-# Check if router already exists
-existing_routers=$(openstack router list --tag "$tag_name" --column Name -f value)
-if echo "$existing_routers" | grep -qFx $router_name; then
+# Check and create router
+checking_routers=$(openstack router list -f value --column Name)
+if ! grep -qFx "$router_name" <<< "$checking_routers"; then
+    router_create=$(openstack router create --tag "$tag_name" "$router_name")
+    echo "$(date) router created $router_name"
+    # Add subnet and external gateway to the router
+    gatewaysetting=$(openstack router set --external-gateway ext-net "$router_name")
+    subnetadding=$(openstack router add subnet "$router_name" "$subnet_name")
+else
     echo "$(date) $router_name already exists"
-else
-    openstack router create --tag "$tag_name" "$router_name"
-    echo "$(date) Created router $router_name"
-    openstack router set --external-gateway ext-net "$router_name"
-    openstack router add subnet "$router_name" "$subnet_name" > /dev/null
 fi
 
-# Check if security group already exists
-existing_security_groups=$(openstack security group list --tag "$tag_name" -f value)
-if echo "$existing_security_groups" | grep -qFx $security_group_name; then
+# Check and create security group
+existing_secgrps=$(openstack security group list -f value --column Name)
+if echo "$existing_secgrps" | grep -qFx "$security_group_name"; then
     echo "$(date) $security_group_name already exists"
 else
-    openstack security group create --tag "$tag_name" "$security_group_name" -f json 
-    for port in 22 80 5000 8080 6000 9090 9100 3000 161; do
-        openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port "$port" --protocol tcp --ingress "$security_group_name"
+    secgrp_create=$(openstack security group create --tag "$tag_name" "$security_group_name" -f json)
+    
+    rules=(
+        "--remote-ip 0.0.0.0/0 --dst-port 22 --protocol tcp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 80 --protocol icmp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 5000 --protocol tcp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 8080 --protocol tcp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 6000 --protocol udp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 9090 --protocol tcp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 9100 --protocol tcp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 3000 --protocol tcp --ingress"
+        "--remote-ip 0.0.0.0/0 --dst-port 161 --protocol udp --ingress"
+        "--protocol 112"
+    )
+
+    for rule in "${rules[@]}"; do
+        openstack security group rule create $rule "$security_group_name"
     done
-    openstack security group rule create --protocol 112 "$security_group_name" # VRRP protocol
-    echo "$(date) Created security group $security_group_name"
+
+    echo "$(date) security group $security_group_name has been created with the specified rules"
 fi
 
 # Create port for Virtual IP
-openstack port create --network "$network_name" --fixed-ip subnet="$subnet_name" --no-security-group "$vip_port"
+echo "$(date) creating virtual port"
+vip=$(openstack port create --network "$network_name" --fixed-ip subnet="$subnet_name" --no-security-group "$vip_port")
 
 unassigned_ips=$(openstack floating ip list --status DOWN -f value -c "Floating IP Address")
 
-# Create servers
+# Create bastion server
 existing_servers=$(openstack server list --status ACTIVE --column Name -f value)
-
-if echo "$existing_servers" | grep -qFx $bastion_server; then
+if echo "$existing_servers" | grep -qFx "$bastion_server"; then
     echo "$(date) $bastion_server already exists"
 else
     if [[ -n "$unassigned_ips" ]]; then
         fip1=$(echo "$unassigned_ips" | awk 'NR==1')
         echo "$(date) Assigned floating IP $fip1 for bastion server"
     else
-        fip1=$(openstack floating ip create ext-net -f json | jq -r '.floating_ip_address')
-        echo "$(date) Created floating IP $fip1 for bastion server"
+        echo "$(date) Creating floating ip for bastion"
+        created_fip1=$(openstack floating ip create ext-net -f json | jq -r '.floating_ip_address')
+        fip1="$created_fip1"
     fi
-    openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$bastion_server" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name"
-    openstack server add floating ip "$bastion_server" "$fip1"
-    echo "$(date) Created $bastion_server server"
+    bastion=$(openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$bastion_server" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name")
+    add_bastion_fip=$(openstack server add floating ip "$bastion_server" "$fip1")
+    echo "$(date) created $bastion_server server"
 fi
 
-if echo "$existing_servers" | grep -qFx $haproxy_server; then
+# Create HAproxy servers
+if echo "$existing_servers" | grep -qFx "$haproxy_server"; then
     echo "$(date) $haproxy_server already exists"
 else
     if [[ -n "$unassigned_ips" ]]; then
@@ -119,70 +136,45 @@ else
 fi
 
 # Attach floating IP to VIP port
-openstack floating ip set --port "$vip_port" "$fip2"
+add_vip_fip=$(openstack floating ip set --port "$vip_port" "$fip2")
+
 vip_addr=$(openstack port show "$vip_port" -f value -c fixed_ips | grep -Po '\d+\.\d+\.\d+\.\d+')
-openstack port set --allowed-address ip-address="$fip2" "$vip_port" > /dev/null
+echo "$vip_addr" >> vipaddr
+
+# Update VIP port with FP pair
+update_port=$(openstack port set --allowed-address ip-address="$fip2" "$vip_port" > /dev/null)
 
 # Manage dev servers
-existing_dev_servers=$(openstack server list --status ACTIVE -f value -c Name | grep -oP "${tag_name}_dev[1-9]+")
-current_dev_count=$(echo "$existing_dev_servers" | wc -l)
+number_dev_servers=$(grep -ocP "${dev_server}" <<<"$existing_servers")
 
-if (( current_dev_count < required_dev_servers )); then
-    servers_to_create=$((required_dev_servers - current_dev_count))
-    for ((i = current_dev_count + 1; i <= current_dev_count + servers_to_create; i++)); do
-        dev_server_name="${dev_server}${i}"
-        openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$dev_server_name" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name"
-        echo "$(date) Created $dev_server_name server"
+if ((required_dev_servers < number_dev_servers)); then
+    dev_server_takeout=$((number_dev_servers - required_dev_servers))
+    for ((i = 0; i < dev_server_takeout; i++)); do
+        devserver_remove=$(openstack server list --status ACTIVE -f value -c Name | grep -m1 -oP "${tag_name}_dev([1-9]+)")
+        removed_server=$(openstack server delete "$devserver_remove" --wait)
+        echo "$(date) Deleted $devserver_remove"
+    done
+elif ((required_dev_servers > number_dev_servers)); then
+    devserver_plus=$((required_dev_servers - number_dev_servers))
+    j=$((number_dev_servers + 1))
+
+    for ((i = 0; i < devserver_plus; i++)); do
+        namedev_server="${dev_server}${j}"
+        dser_create=$(openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$namedev_server" --key-name "$keypair_name" --flavor "1C-1GB-50GB" --network "$network_name" --security-group "$security_group_name")
+        echo "$(date) Created $namedev_server server"
+
         active=false
-        while [ "$active" = false ]; do
-            server_status=$(openstack server show "$dev_server_name" -f value -c status)
-            if [ "$server_status" == "ACTIVE" ]; then
+        until $active; do
+            server_status=$(openstack server show "$namedev_server" -f value -c status)
+            if [[ "$server_status" == "ACTIVE" ]]; then
                 active=true
             fi
         done
-    done
-elif (( current_dev_count > required_dev_servers )); then
-    servers_to_delete=$((current_dev_count - required_dev_servers))
-    for server in $(echo "$existing_dev_servers" | head -n $servers_to_delete); do
-        openstack server delete "$server" --wait
-        echo "$(date) Deleted $server server"
+
+        ((j++))
     done
 else
-    echo "$(date) Required number of dev servers ($required_dev_servers) already exist."
-fi
-
-# Update VIP port with floating IP pair
-update_port=$(openstack port set --allowed-address ip-address="$fip2" "$vip_port")
-
-devservers_count=$(grep -ocP "$dev_server" <<< "$existing_servers")
-
-if (( required_dev_servers > devservers_count )); then
-    devservers_to_add=$((required_dev_servers - devservers_count))
-    sequence=$((devservers_count + 1))
-    while (( devservers_to_add > 0 )); do
-        devserver_name="${dev_server}${sequence}"
-        server_output=$(openstack server create --image "Ubuntu 20.04 Focal Fossa 20200423" "$devserver_name" --key-name "$keypair_name" --flavor "1C-2GB-50GB" --network "$network_name" --security-group "$security_group_name")
-        echo "$(date) Created $devserver_name server"
-        active=false
-        while [ "$active" = false ]; do
-            server_status=$(openstack server show "$devserver_name" -f value -c status)
-            if [ "$server_status" == "ACTIVE" ]; then
-                active=true
-            fi
-        done
-        ((sequence++))
-        ((devservers_to_add--))
-    done
-elif (( required_dev_servers < devservers_count )); then
-    devservers_to_remove=$((devservers_count - required_dev_servers))
-    for ((i = 0; i < devservers_to_remove; i++)); do
-        server_to_delete=$(echo "$existing_dev_servers" | head -n 1)
-        openstack server delete "$server_to_delete" --wait
-        echo "$(date) Deleted $server_to_delete server"
-        existing_dev_servers=$(echo "$existing_dev_servers" | sed '1d')
-    done
-else
-    echo "Required number of dev servers ($required_dev_servers) already exist."
+    echo "Required number of dev servers ($required_dev_servers) already exists."
 fi
 
 # Get floating IPs
@@ -190,41 +182,40 @@ bastionfip=$(openstack server list --name "$bastion_server" -c Networks -f value
 haproxyfip=$(openstack server show "$haproxy_server" -c addresses -f value | grep -Po '\d+\.\d+\.\d+\.\d+' | awk 'NR==1')
 haproxyfip2=$(openstack server list --name "$haproxy_server2" -c Networks -f value | grep -Po '\d+\.\d+\.\d+\.\d+' | awk 'NR==1')
 
-# Update ports of HAProxy servers
+# Update ports of HAproxy servers
 portid_ha1=$(openstack port list --fixed-ip ip-address="$haproxyfip" -c ID -f value)
 portid_ha2=$(openstack port list --fixed-ip ip-address="$haproxyfip2" -c ID -f value)
 
 update_port1=$(openstack port set --allowed-address ip-address="$vip_addr" "$portid_ha1")
 update_port2=$(openstack port set --allowed-address ip-address="$vip_addr" "$portid_ha2")
 
-
 # Generate SSH config file
 echo "$(date) Generating config file"
-echo "Host $bastion_server" >> $sshconfig
-echo "   User ubuntu" >> $sshconfig
-echo "   HostName $bastionfip" >> $sshconfig
-echo "   IdentityFile ~/.ssh/id_rsa" >> $sshconfig
-echo "   UserKnownHostsFile /dev/null" >> $sshconfig
-echo "   StrictHostKeyChecking no" >> $sshconfig
-echo "   PasswordAuthentication no" >> $sshconfig
+cat <<EOL >> $sshconfig
+Host $bastion_server
+    User ubuntu
+    HostName $bastionfip
+    IdentityFile ~/.ssh/id_rsa
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+    PasswordAuthentication no
 
-echo " " >> $sshconfig
-echo "Host $haproxy_server" >> $sshconfig
-echo "   User ubuntu" >> $sshconfig
-echo "   HostName $haproxyfip" >> $sshconfig
-echo "   IdentityFile ~/.ssh/id_rsa" >> $sshconfig
-echo "   StrictHostKeyChecking no" >> $sshconfig
-echo "   PasswordAuthentication no ">> $sshconfig
-echo "   ProxyJump $bastion_server" >> $sshconfig
+Host $haproxy_server
+    User ubuntu
+    HostName $haproxyfip
+    IdentityFile ~/.ssh/id_rsa
+    StrictHostKeyChecking no
+    PasswordAuthentication no
+    ProxyJump $bastion_server
 
-echo " " >> $sshconfig
-echo "Host $haproxy_server2" >> $sshconfig
-echo "   User ubuntu" >> $sshconfig
-echo "   HostName $haproxyfip2" >> $sshconfig
-echo "   IdentityFile ~/.ssh/id_rsa" >> $sshconfig
-echo "   StrictHostKeyChecking no" >> $sshconfig
-echo "   PasswordAuthentication no ">> $sshconfig
-echo "   ProxyJump $bastion_server" >> $sshconfig
+Host $haproxy_server2
+    User ubuntu
+    HostName $haproxyfip2
+    IdentityFile ~/.ssh/id_rsa
+    StrictHostKeyChecking no
+    PasswordAuthentication no
+    ProxyJump $bastion_server
+EOL
 
 # Generate hosts file
 echo "[bastion]" >> $hostsfile
@@ -241,34 +232,37 @@ active_servers=$(openstack server list --status ACTIVE -f value -c Name | grep -
 # Loop through each active server and extract its IP address
 for server in $active_servers; do
     ip_address=$(openstack server list --name $server -c Networks -f value | grep -Po '\d+\.\d+\.\d+\.\d+')
-    echo " " >> $sshconfig
-    echo "Host $server" >> $sshconfig
-    echo "   User ubuntu" >> $sshconfig
-    echo "   HostName $ip_address" >> $sshconfig
-    echo "   IdentityFile ~/.ssh/id_rsa" >> $sshconfig
-    echo "   UserKnownHostsFile /dev/null" >> $sshconfig
-    echo "   StrictHostKeyChecking no" >> $sshconfig
-    echo "   PasswordAuthentication no" >> $sshconfig
-    echo "   ProxyJump $bastion_server" >> $sshconfig 
+    cat <<EOL >> $sshconfig
+
+Host $server
+    User ubuntu
+    HostName $ip_address
+    IdentityFile ~/.ssh/id_rsa
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+    PasswordAuthentication no
+    ProxyJump $bastion_server
+EOL
 
     echo "$server" >> $hostsfile
 done
 
-echo " " >> $hostsfile
-echo "[primary_proxy]" >> $hostsfile
-echo "$haproxy_server" >> $hostsfile
-echo " " >> $hostsfile
-echo "[backup_proxy]" >> $hostsfile
-echo "$haproxy_server2" >> $hostsfile
+cat <<EOL >> $hostsfile
+[primary_proxy]
+$haproxy_server
 
-echo " " >> $hostsfile
-echo "[all:vars]" >> $hostsfile
-echo "ansible_user=ubuntu" >> $hostsfile
-echo "ansible_ssh_private_key_file=~/.ssh/id_rsa" >> $hostsfile
-echo "ansible_ssh_common_args='-F $sshconfig'" >> $hostsfile
+[backup_proxy]
+$haproxy_server2
+
+[all:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+ansible_ssh_common_args='-F $sshconfig'
+EOL
 
 echo "$(date) Running ansible playbook"
 ansible-playbook -i "$hostsfile" site.yaml
 
 echo "$(date) Bastion IP address: $fip1"
 echo "$(date) HAproxy IP address: $fip2"
+
