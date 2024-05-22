@@ -146,7 +146,7 @@
         update_cache: true
     - name: configure snmpd
       template:
-        src: snmpd.conf
+        src: snmpd.conf.j2
         dest: /etc/snmp/snmpd.conf
     - name: restarting snmpd
       service:
