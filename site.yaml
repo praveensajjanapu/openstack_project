@@ -86,7 +86,7 @@
         state: present
     - name: Copy Keepalived configuration
       copy:
-        src: keepalived.conf
+        src: keepalived.conf.j2
         dest: /etc/keepalived/keepalived.conf
       notify:
         - Restart Keepalived
