@@ -6,9 +6,9 @@ display_current_date_time() {
 }
 
 # Arguments
-openrcfile=$1
-tag=$2
-ssh_key=$3
+rc_file=$1
+tag_name=$2
+publickey=$3
 
 # Define variables
 network_name="${tag}_network"
