@@ -11,15 +11,15 @@ tag_name=$2
 publickey=$3
 
 # Define variables
-network_name="${tag}_network"
-subnet_name="${tag}_subnet"
-keypair_name="${tag}_key"
-router_name="${tag}_router"
-security_group_name="${tag}_security_group"
-haproxy_server="${tag}_HAproxy"
-haproxy_server2="${tag}_HAproxy2"
-bastion_server="${tag}_bastion"
-dev_server="${tag}_dev"
+network_name="${tag_name}_network"
+subnet_name="${tag_name}_subnet"
+keypair_name="${tag_name}_key"
+router_name="${tag_name}_router"
+security_group_name="${tag_name}_security_group"
+haproxy_server="${tag_name}_HAproxy"
+haproxy_server2="${tag_name}_HAproxy2"
+bastion_server="${tag_name}_bastion"
+dev_server="${tag_name}_dev"
 ssh_config_file="ssh_config"
 hosts_file="hosts"
 
