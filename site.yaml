@@ -137,7 +137,7 @@
               name: snmpd
               state: latest
     
-    - name: cpy snmpd conf file
+    - name: copy snmpd conf file
       template:
               src: snmpd.conf.j2
               dest: "/etc/snmp/snmpd.conf"
