@@ -148,7 +148,7 @@ else
     fi
     haproxy=$(openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" $haproxy_server --key-name $keypair_name --flavor "1C-2GB-50GB" --network $network_name --security-group $security_group_name)
     haproxy2=$(openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" $haproxy_server2 --key-name $keypair_name --flavor "1C-2GB-50GB" --network $network_name --security-group $security_group_name)
-    echo "$(date) created two HAproxy servers"
+    echo "$(date) created two HAproxy servers  HAproxy and HAproxy2 servers"
 fi
 
 ## Attach floating IP to VIP port
