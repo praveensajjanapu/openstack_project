@@ -328,7 +328,7 @@ sleep 5
 echo "$(date) initialising ansible-playbook"
 
 
-ansible-playbook -i hosts -user='root' --ssh-extra-args='-p 22 -o ConnectionAttempts=10 -o StrictHostKeyChecking=no' install_configure.yaml
+ansible-playbook -i hosts -user='root' --ssh-extra-args='-p 22 -o ConnectionAttempts=10 -o StrictHostKeyChecking=no' site.yaml
 
 echo "$(date) $f1 created for bastion"
 echo "$(date) $f2 created for HAproxys"
