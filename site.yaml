@@ -68,8 +68,8 @@
 
     - name: configure snmpd
       template:
-             src: snmpd.conf.j2
-             dest: /etc/snmp/snmpd.conf
+              src: snmpd.conf
+              dest: /etc/snmp/snmpd.conf
 
     - name: restarting snmpd
       service:
@@ -213,7 +213,7 @@
         mode: '0755'
     
     - name: Install and Configure Requirements
-      command: bash bastionconfiguration.sh
+      command: bash bastionconf.sh
 
     - name: copy prometheus.yml
       template:
@@ -249,7 +249,7 @@
         mode: '0755'
     
     - name: Install and Configure Requirements
-      command: bash nodeconfigure.sh
+      command: bash node_exporter.sh
 
 
 
