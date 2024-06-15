@@ -68,7 +68,7 @@
 
     - name: configure snmpd
       template:
-             src: snmpd.conf
+             src: snmpd.conf.j2
              dest: /etc/snmp/snmpd.conf
 
     - name: restarting snmpd
@@ -123,12 +123,12 @@
 
     - name: configure nginx udp port
       template:
-             src: nginxport.conf
+             src: nginixport.conf
              dest: /etc/nginx/sites-available/default
 
     - name: configure udp for loadbalancing
       template:
-             src: nginxload.conf
+             src: nginix.conf.j2
              dest: /etc/nginx/nginx.conf
 
     - name: Restart Nginx
@@ -208,8 +208,8 @@
 
     - name: Initializing Requirements
       copy:
-        src: "bastionconfiguration.sh"
-        dest: "bastionconfiguration.sh"
+        src: "bastionconf.sh"
+        dest: "bastionconf.sh"
         mode: '0755'
     
     - name: Install and Configure Requirements
@@ -244,8 +244,8 @@
 
     - name: Initializing Requirements
       copy:
-        src: "nodeconfigure.sh"
-        dest: "nodeconfigure.sh"
+        src: "node_exporter.sh"
+        dest: "node_exporter.sh"
         mode: '0755'
     
     - name: Install and Configure Requirements
