@@ -12,6 +12,8 @@ progress=0
 echo "Operation mode started run for tag: $tag using $openrcfile for credentials"
 source $openrcfile
 
+chmod 600 "ssh_key"
+
 
 def_network="${tag}_network"
 def_subnet="${tag}_subnet"
