@@ -222,7 +222,7 @@ dev_count=$(grep -ocP "$nodes" <<< "$dev_present")
 if (("$no_of_nodes" > "$dev_count")); then
     add_nodes=$((no_of_nodes - dev_count))
     echo "$(date) $add_nodes servers need to be added"
-    #echo "[webservers]" >> "$hostsfile"
+    echo "[webservers]" >> "$hostsfile"
     for ((i=0; i<add_nodes; i++)); do
         a=$((i+1))
         nodes_name="${nodes}${a}"
