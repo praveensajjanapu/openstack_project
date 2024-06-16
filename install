@@ -26,6 +26,10 @@ test -f "$sshconfig" && rm "$sshconfig"
 test -f "$knownhosts" && rm "$knownhosts"
 test -f "$hostsfile" && rm "$hostsfile"
 
+
+# Set the correct permissions for the SSH private key
+chmod 600 "$sshk"
+
 #Creating keypair
 ## Check if keypair is already present
 key_present=$(openstack keypair list -f value --column Name)
