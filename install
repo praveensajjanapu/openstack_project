@@ -1,13 +1,12 @@
-#!/bin/bash
+#!/bin/bash    
 
-openrc=$1
-nametag=$2
-sshkey=$3
-sshk=${sshkey%.pub}
+openrc_file=$1
+name_tag=$2
+sshkey_pair=$3
+sshk=${sshkey_pair%.pub}
 no_of_nodes=3
-source "$openrc"
-echo "$(date) ###########INSTALLING############"
-echo "$(date) Starting deployment of $nametag using $openrc for credentials."
+source "$openrc_file"
+echo "$(date) Starting deployment of $name_tag using $openrc_file for credentials."
 
 net_name="$2_network"
 snet_name="$2_subnet"
@@ -33,8 +32,8 @@ key_present=$(openstack keypair list -f value --column Name)
 if [[ "$key_present" == *"$key_name"* ]]; then
     echo "$(date) $key_name already exists"
 else
-    echo "$(date) creating $key_name"
-    create_key=$(openstack keypair create --public-key "$sshkey" "$key_name")
+    #echo "$(date) creating $key_name"
+    create_key=$(openstack keypair create --public-key "$sshkey_pair" "$key_name")
     echo "$(date) $key_name created"
 fi
 
@@ -43,16 +42,16 @@ net_present=$(openstack network list -f value -c Name)
 if [[ "$net_present" == *"$net_name"* ]]; then
     echo "$(date) $net_name already exists"
 else
-    echo "$(date) creating $net_name"
-    create_net=$(openstack network create --tag "$nametag" "$net_name" -f json)
+    #echo "$(date) creating $net_name"
+    create_net=$(openstack network create --tag "$name_tag" "$net_name" -f json)
     echo "$(date) $net_name created"
 fi
 subnet_present=$(openstack subnet list -f value -c Name)
 if [[ "$subnet_present" == *"$snet_name"* ]]; then
     echo "$(date) $snet_name already exists"
 else
-    echo "$(date) creating $snet_name"
-    #create_net= $(openstack network create --tag "$nametag" "$net_name" -f shell)
+    #echo "$(date) creating $snet_name"
+    #create_net= $(openstack network create --tag "$name_tag" "$net_name" -f shell)
     create_subnet=$( openstack subnet create --network "$net_name" --tag "$netname" --subnet-range 10.0.1.0/27 --gateway 10.0.1.1 "$snet_name")
     echo "$(date) $snet_name created"
 fi
@@ -60,9 +59,9 @@ router_present=$(openstack router list -f value -c Name)
 if [[ "$router_present" == *"$routername"* ]]; then
     echo "$(date) $routername already exists"
 else
-    echo "$(date) $routername creating "
-    #create_net= $(openstack network create --tag "$nametag" "$net_name" -f shell)
-    create_router=$(openstack router create --tag "$nametag" "$routername" )
+    #echo "$(date) $routername creating "
+    #create_net= $(openstack network create --tag "$name_tag" "$net_name" -f shell)
+    create_router=$(openstack router create --tag "$name_tag" "$routername" )
     echo "$(date) $routername created"
     setway=$(openstack router set --external-gateway ext-net "$routername")
     add_router_subnet=$(openstack router add subnet "$routername" "$snet_name" )
@@ -73,11 +72,11 @@ security_present=$(openstack security group list -f value -c Name)
 if [[ "$security_present" == *"$secgroupname"* ]]; then
     echo "$(date) $secgroupname already exists"
 else
-    echo "$(date) creating $secgroupname"
-    #create_net= $(openstack security group create --tag "$nametag" "$secgroupname")
-    echo "$(date) $secgroupname created"
+    #echo "$(date) creating $secgroupname"
+    #create_net= $(openstack security group create --tag "$name_tag" "$secgroupname")
+    #echo "$(date) $secgroupname created"
     echo "$(date) adding rules to $secgroupname"
-    created_security_group=$(openstack security group create --tag "$nametag" "$secgroupname" -f shell)
+    created_security_group=$(openstack security group create --tag "$name_tag" "$secgroupname" -f shell)
     rule1=$(openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port 22 --protocol tcp --ingress "$secgroupname")
     rule2=$(openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port 80 --protocol icmp --ingress "$secgroupname")
     rule3=$(openstack security group rule create --remote-ip 0.0.0.0/0 --dst-port 5000 --protocol tcp --ingress "$secgroupname")
@@ -136,7 +135,7 @@ else
     echo "$(date) $f1 for bastion"
     echo "$(date) $f2 for HAproxies"
 fi
-echo "$(date)Creating a virtual port"
+echo "$(date) Creating a virtual port"
 virprt=$(openstack port create --network "$net_name" --fixed-ip subnet="$snet_name" --no-security-group "$viprt" )
 #Creation server
 ##Creating HAproxy
@@ -144,7 +143,7 @@ proxy_present=$(openstack server list -f value --column Name)
 if [[ "$proxy_present" == *"$proxy"* ]]; then
    echo "$(date) $proxy already exists"
 else
-    echo "$(date) creating $proxy"
+    #echo "$(date) creating $proxy"
     create_proxy=$(openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" --key-name "$key_name" --flavor "1C-2GB-50GB" --network "$net_name" --security-group "$secgroupname" "$proxy")
     sleep 10 
     echo "$(date) $proxy created"
@@ -152,7 +151,7 @@ fi
 if [[ "$proxy_present" == *"$proxy2"* ]]; then
    echo "$(date) $proxy2 already exists"
 else
-    echo "$(date) creating $proxy2"
+    #echo "$(date) creating $proxy2"
     create_proxy2=$(openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" --key-name "$key_name" --flavor "1C-2GB-50GB" --network "$net_name" --security-group "$secgroupname" "$proxy2")
     sleep 10
     echo "$(date) $proxy2 created"
@@ -160,7 +159,7 @@ fi
 
 echo "$(date) attaching floating ip to virtual port"
 add_vip_fip=$(openstack floating ip set --port "$viprt" "$f2")
-echo "$(date) extracting fixed  ip of the virtual port"
+#echo "$(date) extracting fixed  ip of the virtual port"
 addrvip=$(openstack port show "$viprt" -f value -c fixed_ips | grep -Po '\d+\.\d+\.\d+\.\d+' | awk 'NR==1')
 echo "$addrvip" >> vipaddr
 echo "$(date) updating the virtual port"
@@ -229,7 +228,7 @@ if (("$no_of_nodes" > "$dev_count")); then
         nodes_name="${nodes}${a}"
         server_create=$(openstack server create --image "Ubuntu 20.04 Focal Fossa x86_64" "$nodes_name" --key-name "$key_name" --flavor "1C-2GB-50GB" --network "$net_name" --security-group "$secgroupname")
         echo "$(date) Server $nodes_name created..."
-        echo "$(date) Waiting for the server to become active"
+        #echo "$(date) Waiting for the server to become active"
     
         # Wait until the server is active
         server_status=""
@@ -238,7 +237,7 @@ if (("$no_of_nodes" > "$dev_count")); then
             server_status=$(openstack server show "$nodes_name" -c status -f value)
         done
 
-        echo "$(date) Server $nodes_name is active."
+        #echo "$(date) Server $nodes_name is active."
     # Proceed with the rest of your code
     done
     dev_config $sshk
@@ -250,7 +249,7 @@ elif (("$no_of_nodes" < "$dev_count")); then
     if (("$del_nodes" > "$stop")); then
         echo "[webservers]" >> "$hostsfile"
             for ((i=del_nodes; i>0; i--)); do
-                server_delete=$(openstack server list --status ACTIVE -f value -c Name | grep -m1 -oP "$nametag"'_dev([1-9]+)')
+                server_delete=$(openstack server list --status ACTIVE -f value -c Name | grep -m1 -oP "$name_tag"'_dev([1-9]+)')
                 serveremove=$(openstack server delete "$server_delete" --wait)
                 sleep 10
             done
