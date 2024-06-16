@@ -222,7 +222,7 @@ dev_count=$(grep -ocP "$nodes" <<< "$dev_present")
 if (("$no_of_nodes" > "$dev_count")); then
     add_nodes=$((no_of_nodes - dev_count))
     echo "$(date) $add_nodes servers need to be added"
-    echo "[webservers]" >> "$hostsfile"
+    #echo "[webservers]" >> "$hostsfile"
     for ((i=0; i<add_nodes; i++)); do
         a=$((i+1))
         nodes_name="${nodes}${a}"
@@ -317,7 +317,7 @@ for server_id in $server_ids; do
 			sleep 10
 		    status=$(openstack server show -f value -c status "$server_id")
 		done
-		echo "$(date) Server "$server_id" is active"
+		#echo "$(date) Server "$server_id" is active"
 done
 
 no_of_nodes=$(openstack server list | grep "$nodes" | wc -l > node_count.txt)
