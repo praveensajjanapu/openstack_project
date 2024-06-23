@@ -1,3 +1,6 @@
+
+#this file and bastionconf.sh both are same 
+
 #!/bin/bash
 
 set -e
