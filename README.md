@@ -23,8 +23,8 @@ c. Lastly, ensure executable permissions for the "cleanup" script:\
 
 
 
-  ###command to see the opnestack servers -- openstack server list
-  ###command to pause the server          -- openstack server pause $serve_rname
+  ###command to see the opnestack servers -- openstack server list\
+  ###command to pause the server          -- openstack server pause $serve_rname\
    
 #### These commands facilitate the deployment, operation, and cleanup of the service within the OpenStack Cloud environment efficiently.
 
@@ -34,5 +34,5 @@ c. Lastly, ensure executable permissions for the "cleanup" script:\
 
 
 #### prometheus and grafana are two powerful tools commonly used together for monitoring and visualization in modern IT environments. They form a robust combination for observing, alerting, and visualizing metrics and logs from various systems and applications.
-1.prometheus  Bastion_fip:9090
-2.Grafana     Bastion_fip:3000 (Next, Bastion_fip must be set up and a dashboard needs to be created before the metrics can be seen. )
+1.prometheus  Bastion_fip:9090\
+2.Grafana     Bastion_fip:3000\ (Next, Bastion_fip must be set up and a dashboard needs to be created before the metrics can be seen. )
