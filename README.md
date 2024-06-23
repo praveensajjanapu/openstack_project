@@ -33,6 +33,6 @@ c. Lastly, ensure executable permissions for the "cleanup" script:\
 3. command to perform the ab test ----  ab -n 1 -c 1 http://HAproxy_fip:port(5000)/  (here "n" is no of users/requests per sec and "c" is concurrency)
 
 
-## prometheus and grafana are two powerful tools commonly used together for monitoring and visualization in modern IT environments. They form a robust combination for observing, alerting, and visualizing metrics and logs from various systems and applications.
+#### prometheus and grafana are two powerful tools commonly used together for monitoring and visualization in modern IT environments. They form a robust combination for observing, alerting, and visualizing metrics and logs from various systems and applications.
 1.prometheus  Bastion_fip:9090
 2.Grafana     Bastion_fip:3000 (Next, Bastion_fip must be set up and a dashboard needs to be created before the metrics can be seen. )
