@@ -1,10 +1,10 @@
 #!/bin/bash
+
 dandt=$(date)
 openrc="$1"
 nametag="$2"
 sshkey="$3"
 sshk=${sshkey%.pub}
-
 
 chmod 600 "$sshk"
 
@@ -25,6 +25,7 @@ knownhosts="known_hosts"
 hostsfile="hosts"
 f1="$(cat floating1)"
 count_nodes="$(cat node_count.txt)"
+
 dev_config(){
 
     active_servers=$(openstack server list --status ACTIVE -f value -c Name | grep -oP "$nodes([1-9]+)")
@@ -105,9 +106,9 @@ do
     totalnodes=$(grep -c "$nodes" <<< "$totalservers")
 
     if ((wantednodes > nodespresent)); then
-	test -f "$sshconfig" && rm "$sshconfig"
-	test -f "$knownhosts" && rm "$knownhosts"
-    	test -f "$hostsfile" && rm "$hostsfile"
+        test -f "$sshconfig" && rm "$sshconfig"
+        test -f "$knownhosts" && rm "$knownhosts"
+        test -f "$hostsfile" && rm "$hostsfile"
         add_nodes=$((wantednodes - nodespresent))
         echo "$(date) $add_nodes need to be added"
         echo "[webservers]" >> "$hostsfile"
@@ -124,41 +125,48 @@ do
             done
             echo "$(date) Server $nodes_name is active."
         done
-     no_of_nodes=$(openstack server list | grep "$nodes" | wc -l > node_count.txt)
-    
-     echo "$(date) $add_nodes number of servers generated..."
-     dev_config $sshk
-     echo "$(date) initialising ansible-playbook"
-     sleep 5
-     ansible-playbook -i hosts -user='root' --ssh-extra-args='-p 22 -o ConnectionAttempts=10 -o StrictHostKeyChecking=no' site.yaml
+        no_of_nodes=$(openstack server list | grep "$nodes" | wc -l > node_count.txt)
+        
+        echo "$(date) $add_nodes number of servers generated..."
+        dev_config $sshk
+        echo "$(date) initialising ansible-playbook"
+        sleep 5
+        ansible-playbook -i hosts -user='root' --ssh-extra-args='-p 22 -o ConnectionAttempts=10 -o StrictHostKeyChecking=no' site.yaml
     elif ((wantednodes < nodespresent)); then
-    	test -f "$sshconfig" && rm "$sshconfig"
-    	test -f "$knownhosts" && rm "$knownhosts"
-    	test -f "$hostsfile" && rm "$hostsfile"
+        test -f "$sshconfig" && rm "$sshconfig"
+        test -f "$knownhosts" && rm "$knownhosts"
+        test -f "$hostsfile" && rm "$hostsfile"
         del_nodes=$((nodespresent - wantednodes))
         echo "$(date) $del_nodes need to be removed"
         stop=0
 
         if ((del_nodes > stop)); then
-        echo "[webservers]" >> "$hostsfile"
+            echo "[webservers]" >> "$hostsfile"
             for ((i=del_nodes; i>0; i--)); do
                 server_delete=$(openstack server list --status ACTIVE -f value -c Name | grep -m1 -oP "$nametag"'_dev([1-9]+)')
                 serveremove=$(openstack server delete "$server_delete" --wait)
                 sleep 8
             done
-         no_of_nodes=$(openstack server list | grep "$nodes" | wc -l > node_count.txt)
-         echo "$(date) $del_nodes number of servers deleted"
-         sleep 3
-         dev_config $sshk
-         echo "$(date) initialising ansible-playbook"
-         sleep 5
-         ansible-playbook -i hosts -user='root' --ssh-extra-args='-p 22 -o ConnectionAttempts=10 -o StrictHostKeyChecking=no' site.yaml
+            no_of_nodes=$(openstack server list | grep "$nodes" | wc -l > node_count.txt)
+            echo "$(date) $del_nodes number of servers deleted"
+            sleep 3
+            dev_config $sshk
+            #echo "$(date) initialising ansible-playbook"
+            sleep 5
+            #ansible-playbook -i hosts -user='root' --ssh-extra-args='-p 22 -o ConnectionAttempts=10 -o StrictHostKeyChecking=no' site.yaml
         fi
     else
         echo "$(date) Required Number of servers $wanted_nodes, already present."
     fi
     
-    echo "Entering into sleep mode"
+    # Check if HAproxy and HAproxy2 servers are paused
+    if [[ "$(openstack server show "$proxy" -f value -c status)" == "PAUSED" ]]; then
+        echo "$(date) HAproxy server ($proxy) is PAUSED."
+    fi
+    if [[ "$(openstack server show "$proxy2" -f value -c status)" == "PAUSED" ]]; then
+        echo "$(date) HAproxy2 server ($proxy2) is PAUSED."
+    fi
 
+    echo "Entering into sleep mode"
     sleep 30
 done
