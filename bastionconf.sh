@@ -124,12 +124,14 @@ EOL
 systemctl daemon-reload
 systemctl start node_exporter
 
-# Install Grafana
-apt update -y
-apt install docker.io -y
 
-# Stop and remove existing Grafana container if running
-if [ $(docker ps -q -f name=grafana) ]; then
+# Install Grafana
+if ! command -v docker &>/dev/null; then
+    echo "Docker not found. Installing Docker..."
+    apt install -y docker.io
+fi
+
+if [ "$(docker ps -q -f name=grafana)" ]; then
     docker stop grafana
     docker rm grafana
 fi
@@ -137,3 +139,74 @@ fi
 docker pull grafana/grafana
 docker run -d -p 3000:3000 --name=grafana grafana/grafana
 
+# Wait for Grafana to start
+sleep 20
+
+# Fetch Floating IP (adjust command as per your environment)
+FLOATING_IP=$(openstack server show $2_bastion -f value -c addresses | awk -F '[, \\[\\]]+' '{print $3}')
+
+# Set Grafana Prometheus data source
+cat <<EOF > prometheus-datasource.json
+{
+  "name": "Prometheus",
+  "type": "prometheus",
+  "url": "http://localhost:9090",
+  "access": "proxy",
+  "basicAuth": false
+}
+EOF
+
+# Create Grafana API key and configure Prometheus data source
+GRAFANA_API_KEY=$(curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"name":"admin","role":"Admin"}' -u admin:admin \
+  http://localhost:3000/api/auth/keys | jq -r .key)
+
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $GRAFANA_API_KEY" \
+  -d @prometheus-datasource.json \
+  http://localhost:3000/api/datasources
+
+# Import the Grafana dashboard (Dashboard ID: 1860)
+cat <<EOF > grafana-dashboard.json
+{
+  "dashboard": {
+    "id": 1860,
+    "uid": null,
+    "title": "Sample Dashboard",
+    "tags": [],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "panels": [
+      {
+        "type": "graph",
+        "title": "Prometheus",
+        "targets": [
+          {
+            "expr": "up",
+            "interval": "",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "datasource": "Prometheus"
+      }
+    ]
+  },
+  "overwrite": true
+}
+EOF
+
+# Import the Grafana dashboard using the provided ID
+DASHBOARD_UID=$(curl -s -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $GRAFANA_API_KEY" \
+  -d @grafana-dashboard.json \
+  http://localhost:3000/api/dashboards/db | jq -r .uid)
+
+if [ "$DASHBOARD_UID" != "null" ]; then
+  echo "Dashboard imported successfully with UID: $DASHBOARD_UID"
+else
+  echo "Failed to import dashboard."
+fi
+
+echo "Setup complete."
