@@ -30,3 +30,4 @@ c. Lastly, ensure executable permissions for the "cleanup" script:\
 
 
 2. Report: The report provides a thorough description of the design, performance evaluation, and scalability factors. It is divided into three sections: a description of the design, performance evaluation using Apache Benchmark, and reasons for managing the system on a big scale.
+3. command to perform the ab test ----  ab -n 50 -c 30 http://86.107.49.99:5000/  (here "n" is no of users/requests per sec and "c" is concurrency) 
