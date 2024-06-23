@@ -19,6 +19,12 @@ b. Set executable permissions for the "operate" script:\
 c. Lastly, ensure executable permissions for the "cleanup" script:\
    chmod +x cleanup\
    ./cleanup openrc nso ssh
+
+
+
+
+  ###command to see the opnestack servers -- openstack server list
+  ###command to pause the server          -- openstack server pause $serve_rname
    
 #### These commands facilitate the deployment, operation, and cleanup of the service within the OpenStack Cloud environment efficiently.
 
